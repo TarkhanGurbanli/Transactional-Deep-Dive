@@ -252,6 +252,171 @@ public class ServiceB {
 }
 ```
 
+## Spring Framework-də `@Transactional` annotasiyası verilənlər bazası əməliyyatlarının təhlükəsiz və idarəolunan şəkildə icra olunması üçün istifadə olunur. Bu annotasiyanın arxasında bir çox komponent və mexanizm gizlidir. Bu sənəddə onları dərin izah edirik:
+
+### 🧠 1. `TransactionInterceptor` – Əsas Mexanizm
+
+### Nədir?
+Spring AOP `@Transactional` annotasiyasını işlətmək üçün `TransactionInterceptor` adlı bir interceptor sinifindən istifadə edir.
+
+### Necə işləyir?
+
+1. Metoda çağırış gəlir (məsələn `paymentService.pay()`).
+2. Əgər bu metod `@Transactional` annotasiyası ilə işarələnibsə, Spring həmin metodu **proxy vasitəsilə** yönləndirir.
+3. `TransactionInterceptor`:
+   - Annotasiyanı oxuyur
+   - `TransactionAttribute` obyektini yaradır
+   - `PlatformTransactionManager` ilə yeni/mövcud transaksiya əldə edir
+   - Əsas metodu çağırır
+   - Əgər uğurludursa: `commit`, əks halda: `rollback`
+
+### Koddan parçalar (sadələşdirilmiş məntiq):
+
+```java
+TransactionAttribute attr = transactionAttributeSource.getTransactionAttribute(method, targetClass);
+TransactionStatus status = transactionManager.getTransaction(attr);
+
+try {
+    // Əsas metodun icrası
+    Object result = methodInvocation.proceed();
+    transactionManager.commit(status);
+    return result;
+} catch (Throwable ex) {
+    transactionManager.rollback(status);
+    throw ex;
+}
+```
+
+### 🧾 2. TransactionAttribute – Annotasiyanın Parametrləri
+- Spring bu obyekt vasitəsilə @Transactional annotasiyasının bütün parametrlərini saxlayır:
+    - propagation
+    - isolation
+    - readOnly
+    - rollbackFor
+    - timeout
+
+- Bu parametrlər metod üçün tranzaksiya davranışını təyin edir.
+
+
+### 🔧 3. PlatformTransactionManager – Tranzaksiyanı İdarə Edən Mexanizm
+- Spring-in tranzaksiya idarə edən interfeysidir. Müxtəlif verilənlər bazası texnologiyalarına uyğun implementasiyaları var:
+
+| İstifadə sahəsi | İmplementasiya |
+|----------------|----------------|
+| JDBC           | `DataSourceTransactionManager` |
+| JPA / Hibernate| `JpaTransactionManager` |
+| JTA            | `JtaTransactionManager` |
+
+```java
+@Bean
+public PlatformTransactionManager transactionManager(EntityManagerFactory emf) {
+    return new JpaTransactionManager(emf);
+}
+```
+
+### 🪞 4. Proxy Mexanizmi
+- @Transactional sadəcə metod səviyyəsində deyil, proxy üzərindən işləyir.
+
+Proxy növləri:
+
+| Şərt | İstifadə olunan proxy |
+|------|------------------------|
+| Sinif `interface`-dən implement edirsə | JDK Dynamic Proxy |
+| Yoxdursa | CGLIB Proxy (sinif subclass olunur) |
+
+Misal:
+
+```java
+@Service
+public class MyService {
+    @Transactional
+    public void performAction() {
+        // Bu metod bir proxy class vasitəsilə çağırılacaq
+    }
+}
+
+```
+Proxy-lər vasitəsilə Spring metod çağırışlarının qarşısında TransactionInterceptor yerləşdirir.
+
+### 🚫 5. Self-Invocation Problemi (Daxili Çağırışlar)
+
+Problem:
+- Bir sinifin içində bir @Transactional metod başqa @Transactional metodu çağırarsa — tranzaksiya işləməz.
+
+Səbəb:
+- Çağırış proxy vasitəsilə deyil, birbaşa obyektin özü ilə olur.
+
+Problemlə qarşılaşan kod:
+
+```java
+@Service
+public class AccountService {
+
+    @Transactional
+    public void transfer() {
+        withdraw(); // <--- Tranzaksiya başlamayacaq!
+    }
+
+    @Transactional
+    public void withdraw() {
+        // bu metod heç bir tranzaksiya ilə icra olunmayacaq
+    }
+}
+```
+Həll 1: Metodu başqa servisdə yaz:
+
+```java
+@Service
+public class TransferService {
+    @Autowired
+    private WithdrawService withdrawService;
+
+    @Transactional
+    public void transfer() {
+        withdrawService.withdraw(); // <--- proxy vasitəsilə çağırılır
+    }
+}
+
+@Service
+public class WithdrawService {
+    @Transactional
+    public void withdraw() {
+        // indi tranzaksiya işləyir
+    }
+}
+```
+
+Həll 2: ApplicationContext ilə öz proxy-nu çağır:
+
+```java
+@Service
+public class AccountService {
+
+    @Autowired
+    private ApplicationContext context;
+
+    @Transactional
+    public void transfer() {
+        context.getBean(AccountService.class).withdraw(); // Proxy vasitəsilə çağırılır
+    }
+
+    @Transactional
+    public void withdraw() {
+        // tranzaksiya indi işləyir
+    }
+}
+```
+
+✅ Nəticə
+
+| Mexanizm | İzah |
+|----------|------|
+| `TransactionInterceptor` | Annotasiyaları oxuyur və tranzaksiya idarəsini təmin edir |
+| `PlatformTransactionManager` | Əsas transaksiya əməliyyatlarını yerinə yetirir |
+| `TransactionAttribute` | Annotasiya parametrlərini saxlayır |
+| Proxy | `@Transactional` yalnız **proxy vasitəsilə** işləyir |
+| Self-Invocation | Eyni sinif daxilində çağırış zamanı tranzaksiya işləməz |
+
 ---
 
 ## 🧠 Qeydlər (Proxy və Mexanizmlər)

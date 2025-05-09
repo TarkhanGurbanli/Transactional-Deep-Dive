@@ -419,13 +419,59 @@ public class AccountService {
 
 ---
 
+## 📌 @Transactional Annotation ile save() metodu olmadan save etmək
+
+```java
+@Transactional
+public void updateUser(Long id, String newName) {
+    User user = userRepository.findById(id).orElseThrow();
+    user.setName(newName);
+    // userRepository.save(user); ← bunu çağırmırıq!
+}
+```
+
+- Cavab: JPA'nın Persistence Context (Qalıcı Obyekt Hovuzu) və Dirty Checking mexanizması sayəsində save olur.
+
+### 📌 Persistence Context Nedir?
+- `Persistence Context` bütün əməliyyat boyunca idarə olunan obyektlərin keşi kimi işləyir.
+    - Siz `findById` ilə obyekti əldə etdiyiniz zaman bu obyekt `Persistence Context`’e (idarə olunan vəziyyət(`managed state`)) götürülür.
+    - Bu obyektdə təyinetmə metodları ilə edilən dəyişikliklər `Persistence Context` deki snapshot ilə müqayisə edilir.
+ 
+
+### 📌 Dirty Checking (Kirli Kontrol) Mekanizması
+
+- Transaksiya bağlanarkən (metod bitərkən):
+    - Persistence Context, transaksiya ərzində dəyişən entity-ləri yoxlayır.
+    - Əgər bir entity-nin sahələrində dəyişiklik edilibsə (snapshot ilə müqayisə edərək), bunları SQL UPDATE ifadəsi kimi verilənlər bazasına ötürür.
+    - Bu prosesə Dirty Checking deyilir.
+    - Yəni save() çağırmağa ehtiyac yoxdur.
+ 
+### 📌 Nə vaxt işləyir?
+- Yalnız @Transactional annotasiyası altında.
+- Yalnız managed state entity-lərdə (idarə olunan vəziyyətdə olan entity-lərdə).
+- Transaction commit edilərkən işləyir.
+
+### 📌 Prosesin Axışı
+
+p- Transaction başlayır
+- `findById` → entity Persistence Context-ə əlavə olunur
+- `setName()` → entity-nin sahəsi dəyişir
+- `Transaction` `commit` edilərkən:
+- `Persistence Context`, entity-nin snapshot-ını hazırki vəziyyəti ilə müqayisə edir
+- Dəyişiklik varsa → SQL UPDATE sorğusu işlədir
+- Dəyişiklik yoxdursa → heç nə etmir
+- (Yəni, avtomatik olaraq dəyişikliklər bazaya yazılır, əl ilə `save()` çağırmağa ehtiyac yoxdur.)
+
+`Dirty Checking`, `JPA/Hibernate` tərəfindən avtomatik olaraq entity dəyişikliklərini aşkarlayıb bazaya yazma mexanizmidir. Yalnız transaction daxilində və managed entity-lər üçün işləyir.
+
+---
+
 ## 🧠 Qeydlər (Proxy və Mexanizmlər)
 
 - Spring `TransactionInterceptor` ilə annotasiyaları oxuyur
 - `PlatformTransactionManager` və `TransactionAttribute` obyektləri istifadə olunur
 - AOP ilə proxy yaratdığı üçün `@Transactional` yalnız public metodlarda işləyir
 - Eyni sinif daxilində self-invocation zamanı AOP işləməz
-
 ---
 
 ## ✅ Nəticə

@@ -453,7 +453,7 @@ public void updateUser(Long id, String newName) {
 
 ### 📌 Prosesin Axışı
 
-p- Transaction başlayır
+- Transaction başlayır
 - `findById` → entity Persistence Context-ə əlavə olunur
 - `setName()` → entity-nin sahəsi dəyişir
 - `Transaction` `commit` edilərkən:

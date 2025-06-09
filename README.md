@@ -43,6 +43,86 @@ Metod çağırışı bu proxy üzərindən keçərək:
 | `noRollbackFor` | Hansı exception-lar rollback olmayacaq |
 | `timeout` | Transaksiya neçə saniyəyə qədər aktiv qala bilər |
 
+### 📌 propagation Parametri
+Transaksiyanın hansı mövcud transaksiyaya daxil olacağı və ya yeni başlayacağı barədə qərar verir.
+
+| Dəyər           | İzah                                                                                       |
+| :-------------- | :----------------------------------------------------------------------------------------- |
+| `REQUIRED`      | Mövcud transaksiyanı istifadə edir. Yoxdursa, yenisini yaradır. *(ən çox istifadə olunan)* |
+| `REQUIRES_NEW`  | Həmişə yeni transaksiya açır və əvvəlkini suspend edir                                     |
+| `MANDATORY`     | Mövcud transaksiyanın içində olmalıdır, yoxdursa `Exception` atır                          |
+| `NEVER`         | Heç bir transaksiyada olmamalıdır, varsa `Exception` atır                                  |
+| `SUPPORTS`      | Əgər transaksiyası varsa, onun içində işləyir. Yoxdursa, transaksiyasız işləyir            |
+| `NOT_SUPPORTED` | Mövcud transaksiyanı suspend edib transaksiyasız işləyir                                   |
+| `NESTED`        | Mövcud transaksiyanın içində nested transaksiyanı başlatmaq üçün                           |
+
+
+### 📌 isolation Parametri
+Eyni anda işləyən transaksiyaların bir-birindən nə qədər təcrid olunacağını idarə edir.
+
+| Dəyər              | İzah                                                               |
+| :----------------- | :----------------------------------------------------------------- |
+| `DEFAULT`          | Verilən bazanın default isolation səviyyəsi                        |
+| `READ_UNCOMMITTED` | Commit olunmamış dəyişiklikləri görə bilir *(ən riskli)*           |
+| `READ_COMMITTED`   | Yalnız commit olunmuş dəyişiklikləri görür                         |
+| `REPEATABLE_READ`  | Eyni transaksiyada eyni query təkrar çalışsa belə eyni nəticə alır |
+| `SERIALIZABLE`     | Ən yüksək səviyyə, transaksiyalar sırayla işləyir                  |
+
+### 📌 readOnly Parametri
+Yalnız oxuma əməliyyatlarında performansı artırmaq üçün istifadə olunur.
+
+| Dəyər   | İzah                                                            |
+| :------ | :-------------------------------------------------------------- |
+| `true`  | Yalnız oxuma əməliyyatları üçün. DB optimizasiyası edə bilər    |
+| `false` | Default dəyər. Həm oxuma, həm yazma əməliyyatlarına icazə verir |
+
+### 📌 rollbackFor Parametri
+Hansı exception-lar baş verdikdə rollback edəcəyini təyin edir.
+
+| Dəyər                                                   | İzah                                                     |
+| :------------------------------------------------------ | :------------------------------------------------------- |
+| `rollbackFor = Exception.class`                         | Exception və ya onun alt class-ları üçün rollback edəcək |
+| `rollbackFor = {IOException.class, SQLException.class}` | Sadəcə göstərilən exception-lar üçün rollback edəcək     |
+
+
+### 📌 noRollbackFor Parametri
+Hansı exception-lar baş verdikdə rollback etməyəcəyini təyin edir.
+
+| Dəyər                                   | İzah                                                   |
+| :-------------------------------------- | :----------------------------------------------------- |
+| `noRollbackFor = CustomException.class` | Göstərilən exception baş versə belə rollback etməyəcək |
+| `noRollbackFor = {IOException.class}`   | Sadəcə bu exception üçün rollback olmayacaq            |
+
+### 📌 timeout Parametri
+Transaksiyanın neçə saniyə ərzində tamamlanması lazım olduğunu təyin edir. Vaxt aşımı olarsa rollback olunur.
+
+| Dəyər          | İzah                                           |
+| :------------- | :--------------------------------------------- |
+| `timeout = 30` | Transaksiya maksimum 30 saniyə davam edə bilər |
+| `timeout = -1` | Heç bir limit yoxdur (default dəyər)           |
+
+### 📌 Nümunə İstifadə:
+```java
+@Transactional(
+    propagation = Propagation.REQUIRED,
+    isolation = Isolation.READ_COMMITTED,
+    readOnly = false,
+    rollbackFor = {CustomException.class},
+    noRollbackFor = {IOException.class},
+    timeout = 20
+)
+public void myServiceMethod() {
+    // method body
+}
+```
+
+### 📌 Tövsiyə:
+Interview-larda ən çox propagation, isolation və rollbackFor barədə sual verilir. Ən yaxşısı:
+
+- `REQUIRED`, `REQUIRES_NEW`, `SUPPORTS` nümunəli fərqləri əzbərlə.
+- `READ_COMMITTED` və `SERIALIZABLE` fərqini bil.
+- `rollbackFor` ilə `checked/unchecked` fərqini açıqlaya bil.
+
 ---
 
 # 🔁 `propagation` növlərinin DƏRİN izahı və nümunələri
